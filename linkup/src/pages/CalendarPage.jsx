@@ -11,21 +11,19 @@ export default function CalendarPage() {
   const [selectedDays, setSelectedDays] = useState([]);
   const [mode, setMode] = useState("view");
   const [selectedDayInfo, setSelectedDayInfo] = useState(null);
-  const [removeConfirm, setRemoveConfirm] = useState(null);
 
-  // ---------------- GET USER ----------------
+  // ---------------- USER ----------------
   useEffect(() => {
     const getUser = async () => {
       const { data } = await supabase.auth.getUser();
       setUser(data?.user || null);
     };
-
     getUser();
   }, []);
 
   // ---------------- FETCH ----------------
   const fetchData = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("availability")
       .select(`
         id,
@@ -34,7 +32,7 @@ export default function CalendarPage() {
         user:profiles(username)
       `);
 
-    if (!error) setAvailability(data || []);
+    setAvailability(data || []);
   };
 
   // ---------------- REALTIME ----------------
@@ -55,7 +53,7 @@ export default function CalendarPage() {
 
   if (!user) return <div style={styles.loading}>Loading...</div>;
 
-  // ---------------- TOGGLE DAYS ----------------
+  // ---------------- LOGIC ----------------
   const toggleDay = (date) => {
     const day = date.toISOString().split("T")[0];
 
@@ -66,7 +64,6 @@ export default function CalendarPage() {
     );
   };
 
-  // ---------------- CLICK DAY ----------------
   const handleDayClick = (date) => {
     const day = date.toISOString().split("T")[0];
 
@@ -76,9 +73,8 @@ export default function CalendarPage() {
       setSelectedDayInfo({
         date: day,
         users,
-        count: users.length,
+        count: users.length
       });
-
       return;
     }
 
@@ -88,52 +84,31 @@ export default function CalendarPage() {
     }
 
     if (mode === "remove") {
-      setRemoveConfirm(day);
+      supabase
+        .from("availability")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("date", day)
+        .then(fetchData);
     }
   };
 
-  // ---------------- CONFIRM ADD ----------------
   const confirmAvailability = async () => {
     const payload = selectedDays.map((day) => ({
       user_id: user.id,
-      date: day,
+      date: day
     }));
 
     const { error } = await supabase
       .from("availability")
       .insert(payload);
 
-    if (error) {
-      alert(error.message);
-      return;
+    if (!error) {
+      setSelectedDays([]);
+      fetchData();
     }
-
-    setSelectedDays([]);
-    fetchData();
   };
 
-  // ---------------- CONFIRM REMOVE ----------------
-  const confirmRemove = async () => {
-    if (!removeConfirm) return;
-
-    const { error } = await supabase
-      .from("availability")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("date", removeConfirm);
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    setRemoveConfirm(null);
-    fetchData();
-  };
-
-  const cancelRemove = () => setRemoveConfirm(null);
-
-  // ---------------- USERS PER DAY ----------------
   const getUsersForDay = (date) => {
     const day = date.toISOString().split("T")[0];
 
@@ -143,74 +118,74 @@ export default function CalendarPage() {
       .filter(Boolean);
   };
 
-  // ---------------- COLOR (GREEN IF >=1) ----------------
   const getColor = (date) => {
     const count = getUsersForDay(date).length;
-
-    if (count >= 1) return "greenday";
+    if (count >= 1) return "green-day";
     return "";
   };
 
+  // ---------------- UI ----------------
   return (
-    <Layout user={user}>
-      <div style={styles.page}>
-        <div style={styles.card}>
+    <div style={styles.background}>
+      <Layout user={user}>
+        <div style={styles.page}>
+          <div style={styles.card}>
 
-          {/* HEADER */}
-          <div style={styles.header}>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={() => setMode("view")} style={btn(mode === "view")}>View</button>
-              <button onClick={() => setMode("add")} style={btn(mode === "add")}>Add</button>
-              <button onClick={() => setMode("remove")} style={btn(mode === "remove")}>Remove</button>
+            {/* HEADER */}
+            <div style={styles.header}>
+              <div style={styles.modes}>
+                <button onClick={() => setMode("view")} style={btn(mode === "view")}>View</button>
+                <button onClick={() => setMode("add")} style={btn(mode === "add")}>Add</button>
+                <button onClick={() => setMode("remove")} style={btn(mode === "remove")}>Remove</button>
+              </div>
             </div>
-          </div>
 
-          {/* CONFIRM */}
-          {mode === "add" && (
-            <button onClick={confirmAvailability} style={styles.confirm}>
-              Confirm Availability
-            </button>
-          )}
+            {/* CONFIRM */}
+            {mode === "add" && (
+              <button onClick={confirmAvailability} style={styles.confirm}>
+                Confirm Availability
+              </button>
+            )}
 
-          {/* CALENDAR */}
-          <Calendar
-            onClickDay={handleDayClick}
-            tileClassName={({ date }) => {
-              const day = date.toISOString().split("T")[0];
+            {/* CALENDAR */}
+            <div style={styles.calendarWrapper}>
+              <Calendar
+                onClickDay={handleDayClick}
+                tileClassName={({ date }) => {
+                  const day = date.toISOString().split("T")[0];
+                  if (selectedDays.includes(day)) return "selected";
+                  return getColor(date);
+                }}
+                tileContent={({ date }) => {
+                  const users = getUsersForDay(date);
+                  const count = users.length;
 
-              if (selectedDays.includes(day)) return "selected";
+                  if (count === 0) return null;
 
-              return getColor(date);
-            }}
-            tileContent={({ date }) => {
-              const count = getUsersForDay(date);
+                  return (
+                    <div style={styles.tileContent}>
+                      {/* NUMBER */}
+                      <div style={styles.countBadge}>{count}</div>
 
-              if (count.length === 0) return null;
-
-              return (
-                <div style={styles.cellContent}>
-                  {/* NUMBER BADGE */}
-                  <div style={styles.countBadge}>
-                    {count.length}
-                  </div>
-
-                  {/* MINI AVATARS */}
-                  <div style={styles.avatarRow}>
-                    {count.slice(0, 3).map((u, i) => (
-                      <div key={i} style={styles.avatar}>
-                        {u.slice(0, 2).toUpperCase()}
+                      {/* INITIALS */}
+                      <div style={styles.initialsRow}>
+                        {users.slice(0, 2).map((u, i) => (
+                          <span key={i} style={styles.initials}>
+                            {u.slice(0, 2).toUpperCase()}
+                          </span>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            }}
-          />
+                    </div>
+                  );
+                }}
+              />
+            </div>
 
+          </div>
         </div>
-      </div>
+      </Layout>
 
-      {/* VIEW POPUP */}
+      {/* POPUP */}
       {selectedDayInfo && (
         <div style={styles.modalOverlay} onClick={() => setSelectedDayInfo(null)}>
           <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
@@ -227,22 +202,7 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
-
-      {/* REMOVE CONFIRM */}
-      {removeConfirm && (
-        <div style={styles.modalOverlay} onClick={cancelRemove}>
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <h3>Remove availability?</h3>
-            <p><b>{removeConfirm}</b></p>
-
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={confirmRemove} style={styles.deleteBtn}>Remove</button>
-              <button onClick={cancelRemove} style={styles.cancelBtn}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </Layout>
+    </div>
   );
 }
 
@@ -258,37 +218,59 @@ const btn = (active) => ({
 
 // ---------------- STYLES ----------------
 const styles = {
-page: {
-  minHeight: "100vh",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-  background: "#f5f5f7",
-  padding: 20
-},
+  background: {
+    minHeight: "100vh",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    background: "linear-gradient(-45deg, #f5f5f7, #e8ecf3, #fff, #f9f9f9)",
+    backgroundSize: "400% 400%"
+  },
 
-card: {
-  width: 460,
-  background: "#fff",
-  padding: 20,
-  borderRadius: 24,
-  boxShadow: "0 10px 40px rgba(0,0,0,0.08)",
+  page: {
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center"
+  },
 
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",  
-  gap: 12
-},
+  card: {
+    width: 460,
+    background: "rgba(255,255,255,0.9)",
+    backdropFilter: "blur(10px)",
+    padding: 20,
+    borderRadius: 24,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 14
+  },
 
   header: {
+    width: "100%",
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center"
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 10
+  },
+
+  title: {
+    fontSize: 20,
+    fontWeight: 600
+  },
+
+  modes: {
+    display: "flex",
+    gap: 6
+  },
+
+  calendarWrapper: {
+    width: "100%",
+    display: "flex",
+    justifyContent: "center"
   },
 
   confirm: {
     width: "100%",
-    margin: "10px 0",
     padding: 10,
     border: "none",
     borderRadius: 12,
@@ -297,10 +279,11 @@ card: {
     fontWeight: 600
   },
 
-  cellContent: {
+  tileContent: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
+    gap: 2,
     marginTop: 2
   },
 
@@ -310,18 +293,17 @@ card: {
     background: "#007aff",
     color: "#fff",
     borderRadius: 999,
-    padding: "2px 6px",
-    marginBottom: 2
+    padding: "2px 6px"
   },
 
-  avatarRow: {
+  initialsRow: {
     display: "flex",
-    gap: 2
+    gap: 3
   },
 
-  avatar: {
-    width: 16,
-    height: 16,
+  initials: {
+    width: 14,
+    height: 14,
     fontSize: 8,
     borderRadius: "50%",
     background: "#34c759",
@@ -331,9 +313,8 @@ card: {
     justifyContent: "center"
   },
 
-  greenday: {
-    background: "rgba(52, 199, 89, 0.18)",
-    borderRadius: 10
+  greenDay: {
+    background: "rgba(52,199,89,0.18)"
   },
 
   userRow: {
@@ -367,23 +348,6 @@ card: {
     borderRadius: 10,
     background: "#007aff",
     color: "#fff"
-  },
-
-  deleteBtn: {
-    flex: 1,
-    padding: 10,
-    border: "none",
-    borderRadius: 10,
-    background: "#ff3b30",
-    color: "#fff"
-  },
-
-  cancelBtn: {
-    flex: 1,
-    padding: 10,
-    border: "none",
-    borderRadius: 10,
-    background: "#eee"
   },
 
   loading: {
