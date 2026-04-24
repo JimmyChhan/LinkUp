@@ -1,43 +1,58 @@
-export default function Layout({ children, user }) {
-  const handleLogout = () => {
-    window.location.reload(); // resets session
+import supabase from "../lib/supabase";
+
+export default function Layout({ user, children }) {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.reload(); // simple reset
   };
 
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
+    <div>
+      {/* TOP BAR */}
+      <div style={styles.topbar}>
+        <div>LinkUp</div>
 
-        <header style={styles.header}>
-          <div>
-            <h1>LinkUp</h1>
-            <p style={{ fontSize: "12px", color: "#888" }}>
-              {user.username}
-            </p>
-          </div>
+        <div style={styles.right}>
+          <span style={styles.user}>
+            {user?.email || "User"}
+          </span>
 
           <button onClick={handleLogout} style={styles.logout}>
             Log out
           </button>
-        </header>
-
-        {children}
+        </div>
       </div>
+
+      {children}
     </div>
   );
 }
 
 const styles = {
-  page: { padding: "20px" },
-  container: { maxWidth: "900px", margin: "0 auto" },
-  header: {
+  topbar: {
     display: "flex",
     justifyContent: "space-between",
-    marginBottom: "20px"
+    alignItems: "center",
+    padding: "12px 16px",
+    borderBottom: "1px solid #eee",
+    background: "#fff"
   },
+
+  right: {
+    display: "flex",
+    gap: "10px",
+    alignItems: "center"
+  },
+
+  user: {
+    fontSize: "14px",
+    color: "#555"
+  },
+
   logout: {
-    padding: "8px 10px",
+    padding: "6px 10px",
     border: "none",
-    borderRadius: "10px",
+    borderRadius: "8px",
     background: "#ff3b30",
     color: "white",
     cursor: "pointer"

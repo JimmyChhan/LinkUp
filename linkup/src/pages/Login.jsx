@@ -1,34 +1,37 @@
 import { useState } from "react";
 import supabase from "../lib/supabase";
 
-export default function Login({ setUser }) {
-  const [username, setUsername] = useState("");
+export default function Login() {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const handleLogin = async () => {
-    const { data, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("username", username)
-      .eq("password", password)
-      .single();
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
 
-    if (error || !data) {
-      alert("Invalid login");
-      return;
-    }
+    if (error) alert(error.message);
+  };
 
-    setUser(data);
+  const handleSignup = async () => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password
+    });
+
+    if (error) alert(error.message);
+    else alert("Check your email to confirm signup");
   };
 
   return (
     <div style={styles.page}>
       <div style={styles.card}>
-        <h2>LinkUp</h2>
+        <h2 style={{ textAlign: "center" }}>Link-Up Calendar</h2>
 
         <input
-          placeholder="Username"
-          onChange={(e) => setUsername(e.target.value)}
+          placeholder="Email"
+          onChange={(e) => setEmail(e.target.value)}
           style={styles.input}
         />
 
@@ -40,7 +43,11 @@ export default function Login({ setUser }) {
         />
 
         <button onClick={handleLogin} style={styles.button}>
-          Log in
+          Log In
+        </button>
+
+        <button onClick={handleSignup} style={styles.secondary}>
+          Sign Up
         </button>
       </div>
     </div>
@@ -55,17 +62,16 @@ const styles = {
     alignItems: "center",
     background: "#f5f5f7"
   },
-card: {
-  width: "320px",
-  padding: "20px",
-  borderRadius: "16px",
-  background: "#fff",
-  boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
-  display: "flex",
-  flexDirection: "column",
-  gap: "10px",
-  textAlign: "center"
-},
+  card: {
+    width: "320px",
+    padding: "20px",
+    borderRadius: "16px",
+    background: "#fff",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px"
+  },
   input: {
     padding: "10px",
     borderRadius: "10px",
@@ -75,8 +81,15 @@ card: {
     padding: "10px",
     borderRadius: "10px",
     border: "none",
-    background: "#2ecc71",
+    background: "#007aff",
     color: "white",
+    cursor: "pointer"
+  },
+  secondary: {
+    padding: "10px",
+    borderRadius: "10px",
+    border: "none",
+    background: "#eee",
     cursor: "pointer"
   }
 };

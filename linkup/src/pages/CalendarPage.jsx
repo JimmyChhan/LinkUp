@@ -3,11 +3,25 @@ import Calendar from "react-calendar";
 import supabase from "../lib/supabase";
 import Layout from "../components/Layout";
 
-export default function CalendarPage({ user }) {
+const TOTAL_USERS = 6;
+
+export default function CalendarPage() {
+  const [user, setUser] = useState(null);
   const [availability, setAvailability] = useState([]);
   const [selectedDays, setSelectedDays] = useState([]);
-  const [mode, setMode] = useState("add"); // add | remove | view
+  const [mode, setMode] = useState("view");
   const [selectedDayInfo, setSelectedDayInfo] = useState(null);
+  const [removeConfirm, setRemoveConfirm] = useState(null);
+
+  // ---------------- GET USER ----------------
+  useEffect(() => {
+    const getUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setUser(data?.user || null);
+    };
+
+    getUser();
+  }, []);
 
   // ---------------- FETCH ----------------
   const fetchData = async () => {
@@ -17,7 +31,7 @@ export default function CalendarPage({ user }) {
         id,
         date,
         user_id,
-        user:users(username)
+        user:profiles(username)
       `);
 
     if (!error) setAvailability(data || []);
@@ -32,14 +46,16 @@ export default function CalendarPage({ user }) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "availability" },
-        () => fetchData()
+        fetchData
       )
       .subscribe();
 
     return () => supabase.removeChannel(channel);
   }, []);
 
-  // ---------------- ADD SELECTION ----------------
+  if (!user) return <div style={styles.loading}>Loading...</div>;
+
+  // ---------------- TOGGLE DAYS ----------------
   const toggleDay = (date) => {
     const day = date.toISOString().split("T")[0];
 
@@ -51,49 +67,41 @@ export default function CalendarPage({ user }) {
   };
 
   // ---------------- CLICK DAY ----------------
-  const handleDayClick = async (date) => {
+  const handleDayClick = (date) => {
     const day = date.toISOString().split("T")[0];
 
-    // 👁️ VIEW MODE
     if (mode === "view") {
-      const users = availability
-        .filter((a) => a.date === day)
-        .map((a) => a.user?.username);
+      const users = getUsersForDay(date);
 
-      setSelectedDayInfo({ date: day, users });
+      setSelectedDayInfo({
+        date: day,
+        users,
+        count: users.length,
+      });
+
       return;
     }
 
-    // 🟢 ADD MODE
     if (mode === "add") {
       toggleDay(date);
       return;
     }
 
-    // 🔴 REMOVE MODE
-    const { error } = await supabase
-      .from("availability")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("date", day);
-
-    if (error) alert(error.message);
-
-    fetchData();
+    if (mode === "remove") {
+      setRemoveConfirm(day);
+    }
   };
 
   // ---------------- CONFIRM ADD ----------------
   const confirmAvailability = async () => {
-    if (selectedDays.length === 0) return;
-
-    const inserts = selectedDays.map((day) => ({
+    const payload = selectedDays.map((day) => ({
       user_id: user.id,
-      date: day
+      date: day,
     }));
 
     const { error } = await supabase
       .from("availability")
-      .insert(inserts);
+      .insert(payload);
 
     if (error) {
       alert(error.message);
@@ -104,26 +112,45 @@ export default function CalendarPage({ user }) {
     fetchData();
   };
 
+  // ---------------- CONFIRM REMOVE ----------------
+  const confirmRemove = async () => {
+    if (!removeConfirm) return;
+
+    const { error } = await supabase
+      .from("availability")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("date", removeConfirm);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setRemoveConfirm(null);
+    fetchData();
+  };
+
+  const cancelRemove = () => setRemoveConfirm(null);
+
   // ---------------- USERS PER DAY ----------------
   const getUsersForDay = (date) => {
     const day = date.toISOString().split("T")[0];
 
     return availability
       .filter((a) => a.date === day)
-      .map((a) => a.user?.username);
+      .map((a) => a.user?.username)
+      .filter(Boolean);
   };
 
-  // ---------------- COLOR ----------------
+  // ---------------- COLOR (GREEN IF >=1) ----------------
   const getColor = (date) => {
     const count = getUsersForDay(date).length;
 
-    if (count === 6) return "full";
-    if (count >= 3) return "mid";
-    if (count >= 1) return "low";
-    return "none";
+    if (count >= 1) return "greenday";
+    return "";
   };
 
-  // ---------------- UI ----------------
   return (
     <Layout user={user}>
       <div style={styles.page}>
@@ -131,44 +158,17 @@ export default function CalendarPage({ user }) {
 
           {/* HEADER */}
           <div style={styles.header}>
-            <div>
-              <h2>Availability</h2>
-              <p style={styles.subtitle}>
-                Mode: {mode.toUpperCase()}
-              </p>
-            </div>
-
-            {/* MODE BUTTONS */}
-            <div style={{ display: "flex", gap: "6px" }}>
-
-              <button onClick={() => setMode("add")} style={{
-                ...styles.modeBtn,
-                background: mode === "add" ? "#2ecc71" : "#eee"
-              }}>
-                ADD
-              </button>
-
-              <button onClick={() => setMode("remove")} style={{
-                ...styles.modeBtn,
-                background: mode === "remove" ? "#ff3b30" : "#eee"
-              }}>
-                REMOVE
-              </button>
-
-              <button onClick={() => setMode("view")} style={{
-                ...styles.modeBtn,
-                background: mode === "view" ? "#007aff" : "#eee"
-              }}>
-                VIEW
-              </button>
-
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={() => setMode("view")} style={btn(mode === "view")}>View</button>
+              <button onClick={() => setMode("add")} style={btn(mode === "add")}>Add</button>
+              <button onClick={() => setMode("remove")} style={btn(mode === "remove")}>Remove</button>
             </div>
           </div>
 
           {/* CONFIRM */}
           {mode === "add" && (
             <button onClick={confirmAvailability} style={styles.confirm}>
-              Confirm selection
+              Confirm Availability
             </button>
           )}
 
@@ -183,17 +183,25 @@ export default function CalendarPage({ user }) {
               return getColor(date);
             }}
             tileContent={({ date }) => {
-              const users = getUsersForDay(date);
+              const count = getUsersForDay(date);
 
-              if (users.length === 0) return null;
+              if (count.length === 0) return null;
 
               return (
-                <div style={styles.names}>
-                  {users.map((u, i) => (
-                    <span key={i} style={styles.badge}>
-                      {u?.slice(0, 2).toUpperCase()}
-                    </span>
-                  ))}
+                <div style={styles.cellContent}>
+                  {/* NUMBER BADGE */}
+                  <div style={styles.countBadge}>
+                    {count.length}
+                  </div>
+
+                  {/* MINI AVATARS */}
+                  <div style={styles.avatarRow}>
+                    {count.slice(0, 3).map((u, i) => (
+                      <div key={i} style={styles.avatar}>
+                        {u.slice(0, 2).toUpperCase()}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               );
             }}
@@ -202,31 +210,35 @@ export default function CalendarPage({ user }) {
         </div>
       </div>
 
-      {/* ---------------- VIEW POPUP ---------------- */}
+      {/* VIEW POPUP */}
       {selectedDayInfo && (
         <div style={styles.modalOverlay} onClick={() => setSelectedDayInfo(null)}>
           <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-
             <h3>{selectedDayInfo.date}</h3>
+            <p>{selectedDayInfo.count} available</p>
 
-            {selectedDayInfo.users.length === 0 ? (
-              <p>No one is available</p>
-            ) : (
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                {selectedDayInfo.users.map((u, i) => (
-                  <span key={i} style={styles.badge}>
-                    {u?.slice(0, 2).toUpperCase()}
-                  </span>
-                ))}
-              </div>
-            )}
+            {selectedDayInfo.users.map((u, i) => (
+              <div key={i} style={styles.userRow}>{u}</div>
+            ))}
 
-            <button
-              onClick={() => setSelectedDayInfo(null)}
-              style={styles.closeBtn}
-            >
+            <button onClick={() => setSelectedDayInfo(null)} style={styles.closeBtn}>
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* REMOVE CONFIRM */}
+      {removeConfirm && (
+        <div style={styles.modalOverlay} onClick={cancelRemove}>
+          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <h3>Remove availability?</h3>
+            <p><b>{removeConfirm}</b></p>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={confirmRemove} style={styles.deleteBtn}>Remove</button>
+              <button onClick={cancelRemove} style={styles.cancelBtn}>Cancel</button>
+            </div>
           </div>
         </div>
       )}
@@ -234,23 +246,39 @@ export default function CalendarPage({ user }) {
   );
 }
 
+// ---------------- BUTTON ----------------
+const btn = (active) => ({
+  padding: "8px 10px",
+  border: "none",
+  borderRadius: 10,
+  cursor: "pointer",
+  background: active ? "#007aff" : "#eee",
+  color: active ? "#fff" : "#000"
+});
+
 // ---------------- STYLES ----------------
 const styles = {
-  page: {
-    minHeight: "100vh",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    background: "#f5f5f7"
-  },
+page: {
+  minHeight: "100vh",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+  background: "#f5f5f7",
+  padding: 20
+},
 
-  card: {
-    width: "420px",
-    background: "#fff",
-    padding: "18px",
-    borderRadius: "24px",
-    boxShadow: "0 10px 40px rgba(0,0,0,0.08)"
-  },
+card: {
+  width: 460,
+  background: "#fff",
+  padding: 20,
+  borderRadius: 24,
+  boxShadow: "0 10px 40px rgba(0,0,0,0.08)",
+
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",  
+  gap: 12
+},
 
   header: {
     display: "flex",
@@ -258,51 +286,66 @@ const styles = {
     alignItems: "center"
   },
 
-  subtitle: {
-    fontSize: "12px",
-    color: "#888",
-    margin: 0
-  },
-
-  modeBtn: {
-    padding: "6px 10px",
-    border: "none",
-    borderRadius: "8px",
-    cursor: "pointer"
-  },
-
   confirm: {
     width: "100%",
     margin: "10px 0",
-    padding: "8px 12px",
+    padding: 10,
     border: "none",
-    borderRadius: "10px",
-    background: "#007aff",
-    color: "white",
-    cursor: "pointer"
+    borderRadius: 12,
+    background: "#34c759",
+    color: "#fff",
+    fontWeight: 600
   },
 
-  names: {
+  cellContent: {
     display: "flex",
-    gap: "4px",
-    justifyContent: "center",
-    marginTop: "4px",
-    flexWrap: "wrap"
+    flexDirection: "column",
+    alignItems: "center",
+    marginTop: 2
   },
 
-  badge: {
-    fontSize: "9px",
-    background: "rgba(0,0,0,0.08)",
-    padding: "2px 5px",
-    borderRadius: "6px"
+  countBadge: {
+    fontSize: 10,
+    fontWeight: 700,
+    background: "#007aff",
+    color: "#fff",
+    borderRadius: 999,
+    padding: "2px 6px",
+    marginBottom: 2
+  },
+
+  avatarRow: {
+    display: "flex",
+    gap: 2
+  },
+
+  avatar: {
+    width: 16,
+    height: 16,
+    fontSize: 8,
+    borderRadius: "50%",
+    background: "#34c759",
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+
+  greenday: {
+    background: "rgba(52, 199, 89, 0.18)",
+    borderRadius: 10
+  },
+
+  userRow: {
+    padding: 6,
+    background: "#f2f2f7",
+    marginTop: 6,
+    borderRadius: 8
   },
 
   modalOverlay: {
     position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    inset: 0,
     background: "rgba(0,0,0,0.4)",
     display: "flex",
     justifyContent: "center",
@@ -311,19 +354,40 @@ const styles = {
 
   modal: {
     background: "#fff",
-    padding: "20px",
-    borderRadius: "16px",
-    width: "300px",
-    textAlign: "center"
+    padding: 20,
+    borderRadius: 16,
+    width: 300
   },
 
   closeBtn: {
-    marginTop: "10px",
-    padding: "6px 10px",
+    marginTop: 10,
+    width: "100%",
+    padding: 8,
     border: "none",
-    borderRadius: "8px",
+    borderRadius: 10,
     background: "#007aff",
-    color: "white",
-    cursor: "pointer"
+    color: "#fff"
+  },
+
+  deleteBtn: {
+    flex: 1,
+    padding: 10,
+    border: "none",
+    borderRadius: 10,
+    background: "#ff3b30",
+    color: "#fff"
+  },
+
+  cancelBtn: {
+    flex: 1,
+    padding: 10,
+    border: "none",
+    borderRadius: 10,
+    background: "#eee"
+  },
+
+  loading: {
+    padding: 20,
+    textAlign: "center"
   }
 };
