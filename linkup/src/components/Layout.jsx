@@ -1,17 +1,23 @@
 export default function Layout({ children, user }) {
+  const handleLogout = () => {
+    window.location.reload(); // resets session
+  };
+
   return (
     <div style={styles.page}>
       <div style={styles.container}>
-        
+
         <header style={styles.header}>
           <div>
-            <h1 style={styles.title}>LinkUp</h1>
-            <p style={styles.subtitle}>Shared availability calendar</p>
+            <h1>LinkUp</h1>
+            <p style={{ fontSize: "12px", color: "#888" }}>
+              {user.username}
+            </p>
           </div>
 
-          <div style={styles.user}>
-            {user?.username}
-          </div>
+          <button onClick={handleLogout} style={styles.logout}>
+            Log out
+          </button>
         </header>
 
         {children}
@@ -21,38 +27,19 @@ export default function Layout({ children, user }) {
 }
 
 const styles = {
-  page: {
-    minHeight: "100vh",
-    background: "#f5f6f8",
-    display: "flex",
-    justifyContent: "center",
-    padding: "20px"
-  },
-  container: {
-    width: "100%",
-    maxWidth: "900px"
-  },
+  page: { padding: "20px" },
+  container: { maxWidth: "900px", margin: "0 auto" },
   header: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: "20px"
   },
-  title: {
-    margin: 0,
-    fontSize: "28px",
-    fontWeight: "700"
-  },
-  subtitle: {
-    margin: 0,
-    fontSize: "13px",
-    color: "#666"
-  },
-  user: {
-    background: "#fff",
-    padding: "8px 12px",
+  logout: {
+    padding: "8px 10px",
+    border: "none",
     borderRadius: "10px",
-    fontSize: "14px",
-    boxShadow: "0 2px 10px rgba(0,0,0,0.05)"
+    background: "#ff3b30",
+    color: "white",
+    cursor: "pointer"
   }
 };

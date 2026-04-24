@@ -1,15 +1,39 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import supabase from "./lib/supabase";
 import Login from "./pages/Login";
 import CalendarPage from "./pages/CalendarPage";
 
-function App() {
+export default function App() {
+
   const [user, setUser] = useState(null);
 
-  return user ? (
-    <CalendarPage user={user} />
-  ) : (
-    <Login setUser={setUser} />
-  );
-}
+  if (!user) {
 
-export default App;
+    return <Login setUser={setUser} />;
+
+  }
+  return <CalendarPage user={user} />;
+
+  // 🔐 Load session on refresh
+  useEffect(() => {
+    const getSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      setUser(data.session?.user ?? null);
+    };
+
+    getSession();
+
+    // 👂 Listen to login/logout changes
+    const { data } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
+
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  if (!user) return <Login />;
+
+  return <CalendarPage user={user} />;
+}
