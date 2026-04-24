@@ -10,7 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.104.1",
+    "clsx": "^2.1.1",
+    "dayjs": "^1.11.20",
     "react": "^19.2.5",
+    "react-calendar": "^6.0.1",
     "react-dom": "^19.2.5"
   },
   "devDependencies": {
