@@ -12,7 +12,6 @@ export default function CalendarPage() {
   const [mode, setMode] = useState("view");
   const [selectedDayInfo, setSelectedDayInfo] = useState(null);
 
-  // 👇 DELETE CONFIRM STATE
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   // ---------------- USER ----------------
@@ -56,7 +55,6 @@ export default function CalendarPage() {
 
   if (!user) return <div style={styles.loading}>Loading...</div>;
 
-  // ---------------- LOGIC ----------------
   const toggleDay = (date) => {
     const day = date.toISOString().split("T")[0];
 
@@ -86,7 +84,6 @@ export default function CalendarPage() {
       return;
     }
 
-    // ✅ REMOVE MODE → ask confirmation instead of deleting instantly
     if (mode === "remove") {
       setDeleteConfirm(day);
     }
@@ -98,19 +95,13 @@ export default function CalendarPage() {
       date: day
     }));
 
-    const { error } = await supabase
-      .from("availability")
-      .insert(payload);
+    await supabase.from("availability").insert(payload);
 
-    if (!error) {
-      setSelectedDays([]);
-      fetchData();
-    }
+    setSelectedDays([]);
+    fetchData();
   };
 
   const confirmDelete = async () => {
-    if (!deleteConfirm) return;
-
     await supabase
       .from("availability")
       .delete()
@@ -119,10 +110,6 @@ export default function CalendarPage() {
 
     setDeleteConfirm(null);
     fetchData();
-  };
-
-  const cancelDelete = () => {
-    setDeleteConfirm(null);
   };
 
   const getUsersForDay = (date) => {
@@ -140,7 +127,6 @@ export default function CalendarPage() {
     return "";
   };
 
-  // ---------------- UI ----------------
   return (
     <div style={styles.background}>
       <Layout user={user}>
@@ -149,6 +135,8 @@ export default function CalendarPage() {
 
             {/* HEADER */}
             <div style={styles.header}>
+              <h2 style={styles.title}>Link-Up Calendar</h2>
+
               <div style={styles.modes}>
                 <button onClick={() => setMode("view")} style={btn(mode === "view")}>View</button>
                 <button onClick={() => setMode("add")} style={btn(mode === "add")}>Add</button>
@@ -156,7 +144,6 @@ export default function CalendarPage() {
               </div>
             </div>
 
-            {/* CONFIRM ADD */}
             {mode === "add" && (
               <button onClick={confirmAvailability} style={styles.confirm}>
                 Confirm Availability
@@ -174,13 +161,12 @@ export default function CalendarPage() {
                 }}
                 tileContent={({ date }) => {
                   const users = getUsersForDay(date);
-                  const count = users.length;
 
-                  if (count === 0) return null;
+                  if (!users.length) return null;
 
                   return (
                     <div style={styles.tileContent}>
-                      <div style={styles.countBadge}>{count}</div>
+                      <div style={styles.countBadge}>{users.length}</div>
 
                       <div style={styles.initialsRow}>
                         {users.slice(0, 2).map((u, i) => (
@@ -199,7 +185,7 @@ export default function CalendarPage() {
         </div>
       </Layout>
 
-      {/* ================= VIEW MODAL ================= */}
+      {/* MODALS */}
       {selectedDayInfo && (
         <div style={styles.modalOverlay} onClick={() => setSelectedDayInfo(null)}>
           <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
@@ -217,20 +203,15 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* ================= DELETE CONFIRM MODAL ================= */}
       {deleteConfirm && (
-        <div style={styles.modalOverlay} onClick={cancelDelete}>
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <div style={styles.modalOverlay}>
+          <div style={styles.modal}>
+            <h3>Delete availability?</h3>
 
-            <h3>Remove Date?</h3>
-            <p>Are you sure you want to remove:</p>
+            <div style={{ fontWeight: 600 }}>{deleteConfirm}</div>
 
-            <div style={{ fontWeight: "bold", margin: "10px 0" }}>
-              {deleteConfirm}
-            </div>
-
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={cancelDelete} style={styles.cancelBtn}>
+            <div style={styles.modalBtns}>
+              <button onClick={() => setDeleteConfirm(null)} style={styles.cancelBtn}>
                 Cancel
               </button>
 
@@ -238,23 +219,22 @@ export default function CalendarPage() {
                 Delete
               </button>
             </div>
-
           </div>
         </div>
       )}
-
     </div>
   );
 }
 
 // ---------------- BUTTON ----------------
 const btn = (active) => ({
-  padding: "8px 10px",
+  padding: "8px 12px",
   border: "none",
-  borderRadius: 10,
+  borderRadius: 12,
   cursor: "pointer",
-  background: active ? "#007aff" : "#eee",
-  color: active ? "#fff" : "#000"
+  background: active ? "#007aff" : "rgba(0,0,0,0.06)",
+  color: active ? "#fff" : "#000",
+  transition: "0.2s"
 });
 
 // ---------------- STYLES ----------------
@@ -264,37 +244,47 @@ const styles = {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    background: "linear-gradient(-45deg, #f5f5f7, #e8ecf3, #fff, #f9f9f9)",
-    backgroundSize: "400% 400%"
+    background: "linear-gradient(135deg, #f8f9fb, #e9eef5)",
+    padding: 20
   },
 
   page: {
     display: "flex",
     justifyContent: "center",
-    alignItems: "center"
+    alignItems: "center",
+    width: "100%"
   },
 
   card: {
-    width: 460,
-    background: "rgba(255,255,255,0.9)",
-    backdropFilter: "blur(10px)",
-    padding: 20,
-    borderRadius: 24,
+    width: 520,
+    background: "rgba(255,255,255,0.85)",
+    backdropFilter: "blur(14px)",
+    padding: 24,
+    borderRadius: 26,
+    boxShadow: "0 20px 60px rgba(0,0,0,0.08)",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    gap: 14
+    gap: 16
   },
 
   header: {
     width: "100%",
     display: "flex",
-    justifyContent: "center"
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 10
+  },
+
+  title: {
+    margin: 0,
+    fontSize: 22,
+    fontWeight: 700
   },
 
   modes: {
     display: "flex",
-    gap: 6
+    gap: 8
   },
 
   calendarWrapper: {
@@ -305,29 +295,29 @@ const styles = {
 
   confirm: {
     width: "100%",
-    padding: 10,
+    padding: 12,
     border: "none",
-    borderRadius: 12,
+    borderRadius: 14,
     background: "#34c759",
     color: "#fff",
-    fontWeight: 600
+    fontWeight: 700,
+    cursor: "pointer"
   },
 
   tileContent: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    gap: 2,
-    marginTop: 2
+    gap: 2
   },
 
   countBadge: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 700,
     background: "#007aff",
     color: "#fff",
     borderRadius: 999,
-    padding: "2px 6px"
+    padding: "2px 7px"
   },
 
   initialsRow: {
@@ -336,9 +326,9 @@ const styles = {
   },
 
   initials: {
-    width: 14,
-    height: 14,
-    fontSize: 8,
+    width: 16,
+    height: 16,
+    fontSize: 9,
     borderRadius: "50%",
     background: "#34c759",
     color: "#fff",
@@ -349,7 +339,7 @@ const styles = {
 
   userRow: {
     padding: 6,
-    background: "#f2f2f7",
+    background: "#f3f4f6",
     marginTop: 6,
     borderRadius: 8
   },
@@ -357,7 +347,7 @@ const styles = {
   modalOverlay: {
     position: "fixed",
     inset: 0,
-    background: "rgba(0,0,0,0.4)",
+    background: "rgba(0,0,0,0.35)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center"
@@ -365,9 +355,34 @@ const styles = {
 
   modal: {
     background: "#fff",
-    padding: 20,
+    padding: 22,
     borderRadius: 16,
-    width: 300
+    width: 320
+  },
+
+  modalBtns: {
+    display: "flex",
+    gap: 10,
+    marginTop: 12
+  },
+
+  cancelBtn: {
+    flex: 1,
+    padding: 8,
+    borderRadius: 10,
+    border: "none",
+    background: "#eee",
+    cursor: "pointer"
+  },
+
+  deleteBtn: {
+    flex: 1,
+    padding: 8,
+    borderRadius: 10,
+    border: "none",
+    background: "#ff3b30",
+    color: "#fff",
+    cursor: "pointer"
   },
 
   closeBtn: {
@@ -380,27 +395,8 @@ const styles = {
     color: "#fff"
   },
 
-  cancelBtn: {
-    flex: 1,
-    padding: 8,
-    border: "none",
-    borderRadius: 10,
-    background: "#ddd",
-    cursor: "pointer"
-  },
-
-  deleteBtn: {
-    flex: 1,
-    padding: 8,
-    border: "none",
-    borderRadius: 10,
-    background: "#ff3b30",
-    color: "#fff",
-    cursor: "pointer"
-  },
-
   loading: {
-    padding: 20,
-    textAlign: "center"
+    textAlign: "center",
+    padding: 20
   }
 };
